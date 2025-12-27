@@ -7,10 +7,29 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
     <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
         body {
             font-family: 'Jua', sans-serif;
-            background-color: #f3f4f6;
+            background-image: url('/game_bg.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
             user-select: none;
+        }
+        #root {
+            width: 100%;
+            height: 100%;
+            background-image: url('/game_bg.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
         }
         .game-canvas {
             background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
@@ -424,12 +443,8 @@
                             React.createElement(Kitchen, { onPrepareFood: (f) => { playSFX('cook'); handleFoodPrepared(f); }, foodTray, maxSlots: MAX_TRAY_SLOTS })
                         )
                     ),
-                    gameState === 'START' ? React.createElement('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-500 via-red-600 to-yellow-500' },
-                        React.createElement('div', { className: 'relative z-30 flex flex-col items-center' },
-                            React.createElement('h1', { className: 'text-6xl font-black text-white drop-shadow-lg tracking-tighter' }, '민규의'),
-                            React.createElement('h1', { className: 'text-7xl font-black text-yellow-300 drop-shadow-lg tracking-tighter mt-1 italic' }, '분식 전쟁')
-                        ),
-                        React.createElement('div', { className: 'relative z-20 w-full max-w-[280px] flex flex-col gap-2.5 mt-8' },
+                    gameState === 'START' ? React.createElement('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-end p-4', style: { backgroundImage: 'url(/game_bg.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' } },
+                        React.createElement('div', { className: 'relative z-20 w-full max-w-[280px] flex flex-col gap-2.5 mb-8' },
                             React.createElement('button', { onClick: handleStart, className: 'w-full bg-white text-red-600 text-2xl font-black py-3 rounded-2xl shadow-lg' }, '영업 시작'),
                             React.createElement('button', { onClick: () => { playSFX('click'); setShowHelp(true); }, className: 'w-full bg-red-800 text-white text-2xl font-black py-3 rounded-2xl shadow-lg' }, '게임 방법')
                         )
