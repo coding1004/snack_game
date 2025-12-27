@@ -35,3 +35,19 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Full-viewport layout: make the app occupy the whole browser viewport */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+body {
+  overscroll-behavior: none;
+}

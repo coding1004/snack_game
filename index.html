@@ -472,6 +472,21 @@
         // Mount the app
         const root = createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
+
+        // 요청 가능한 경우, 첫 사용자 상호작용(클릭 또는 키 입력) 시 전체화면으로 전환합니다.
+        (function() {
+            function requestFull() {
+                const el = document.documentElement;
+                const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+                if (fn) {
+                    try { fn.call(el); } catch (e) { /* ignore */ }
+                }
+                window.removeEventListener('click', requestFull);
+                window.removeEventListener('keydown', requestFull);
+            }
+            window.addEventListener('click', requestFull, { once: true });
+            window.addEventListener('keydown', requestFull, { once: true });
+        })();
     </script>
 </body>
 </html>
