@@ -443,7 +443,7 @@
                             React.createElement(Kitchen, { onPrepareFood: (f) => { playSFX('cook'); handleFoodPrepared(f); }, foodTray, maxSlots: MAX_TRAY_SLOTS })
                         )
                     ),
-                    gameState === 'START' ? React.createElement('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-end p-4', style: { backgroundImage: 'url(https://github.com/user-attachments/assets/c4095025-a2ae-464e-9849-af6f6afbc0a0)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' } },
+                    gameState === 'START' ? React.createElement('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-end p-4', style: { backgroundImage: 'url("https://github.com/user-attachments/assets/c4095025-a2ae-464e-9849-af6f6afbc0a0")', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' } },
                         React.createElement('div', { className: 'relative z-20 w-full max-w-[280px] flex flex-col gap-2.5 mb-8' },
                             React.createElement('button', { onClick: handleStart, className: 'w-full bg-white text-red-600 text-2xl font-black py-3 rounded-2xl shadow-lg' }, '영업 시작'),
                             React.createElement('button', { onClick: () => { playSFX('click'); setShowHelp(true); }, className: 'w-full bg-red-800 text-white text-2xl font-black py-3 rounded-2xl shadow-lg' }, '게임 방법')
