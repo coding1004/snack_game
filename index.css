@@ -51,3 +51,23 @@ html, body, #root {
 body {
   overscroll-behavior: none;
 }
+
+/* Fallback rotation: when orientation lock isn't available, rotate the root to simulate landscape */
+#root.force-rotate {
+  transform: rotate(90deg);
+  transform-origin: left top;
+  width: 100vh;
+  height: 100vw;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+/* Prevent mobile callouts and hide some chrome where possible */
+html, body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
