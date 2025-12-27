@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>민규의 분식 전쟁</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f3f4f6;
+            user-select: none;
+        }
+        .pixel-border {
+            border: 4px solid #4a2c2a;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+        }
+        .game-canvas {
+            background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        @keyframes bounce-small {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .animate-bounce-small {
+            animation: bounce-small 0.5s infinite;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/19.2.3/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/19.2.3/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://cdnjs.cloudflare.com/ajax/libs/react/19.2.3/react.production.min.js",
+        "react-dom/client": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/19.2.3/react-dom.production.min.js",
+        "lucide-react": "https://cdn.jsdelivr.net/npm/lucide@latest"
+      }
+    }
+    </script>
+    <script type="module">
+        import App, { CustomerState } from './App.jsx';
+        import React from 'react';
+        
+        const { useState, useEffect, useCallback, useRef } = React;
+        const ReactDOM = window.ReactDOM;
+        const { createRoot } = ReactDOM;
+        
+        const rootElement = document.getElementById('root');
+        const root = createRoot(rootElement);
+        
+        root.render(
+            React.createElement(React.StrictMode, null, 
+                React.createElement(App)
+            )
+        );
+    </script>
+</body>
+</html>

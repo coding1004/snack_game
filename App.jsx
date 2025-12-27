@@ -1,28 +1,34 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Customer, CustomerState, FoodType, Table, FoodInfo } from './types';
-import { FOOD_DATA, INITIAL_TABLES, GAME_DURATION, MAX_PATIENCE, PATIENCE_DECAY_RATE } from './constants';
-import GameBoard from './components/GameBoard';
-import Kitchen from './components/Kitchen';
-import TopBar from './components/TopBar';
+import { FOOD_DATA, INITIAL_TABLES, GAME_DURATION, MAX_PATIENCE, PATIENCE_DECAY_RATE } from './constants.js';
+import GameBoard from './components/GameBoard.jsx';
+import Kitchen from './components/Kitchen.jsx';
+import TopBar from './components/TopBar.jsx';
 import { Play, RotateCcw, X, Info, Home } from 'lucide-react';
 
 const MAX_TRAY_SLOTS = 5;
 
-const App: React.FC = () => {
-  const [gameState, setGameState] = useState<'START' | 'PLAYING' | 'GAMEOVER'>('START');
+const CustomerState = {
+  WAITING_TABLE: 'WAITING_TABLE',
+  ORDERING: 'ORDERING',
+  WAITING_FOOD: 'WAITING_FOOD',
+  EATING: 'EATING',
+  FINISHED: 'FINISHED',
+  LEAVING: 'LEAVING'
+};
+
+const App = () => {
+  const [gameState, setGameState] = useState('START');
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
-  
-  const [foodTray, setFoodTray] = useState<FoodType[]>([]);
+  const [customers, setCustomers] = useState([]);
+  const [tables, setTables] = useState(INITIAL_TABLES);
+  const [foodTray, setFoodTray] = useState([]);
   const [showHelp, setShowHelp] = useState(false);
 
-  const gameLoopRef = useRef<number | undefined>(undefined);
-  const lastUpdateRef = useRef<number>(0);
-  const bgmRef = useRef<HTMLAudioElement | null>(null);
-  const sfxRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
+  const gameLoopRef = useRef(undefined);
+  const lastUpdateRef = useRef(0);
+  const bgmRef = useRef(null);
+  const sfxRefs = useRef({});
 
   useEffect(() => {
     bgmRef.current = new Audio('https://www.chosic.com/wp-content/uploads/2021/04/Kawaii-Adventure.mp3');
@@ -47,9 +53,9 @@ const App: React.FC = () => {
     }
   }, [gameState]);
 
-  const playSFX = useCallback((key: string) => {
+  const playSFX = useCallback((key) => {
     if (sfxRefs.current[key]) {
-      const audio = sfxRefs.current[key].cloneNode() as HTMLAudioElement;
+      const audio = sfxRefs.current[key].cloneNode();
       audio.volume = 0.5;
       audio.play().catch(() => {});
     }
@@ -59,10 +65,10 @@ const App: React.FC = () => {
     const emptyTables = tables.filter(t => !t.isOccupied && !t.needsCleaning);
     if (emptyTables.length === 0 || Math.random() > 0.4) return;
     const randomTable = emptyTables[Math.floor(Math.random() * emptyTables.length)];
-    const foodTypes = Object.keys(FOOD_DATA) as FoodType[];
+    const foodTypes = Object.keys(FOOD_DATA);
     const orderSize = Math.floor(Math.random() * 2) + 1;
     const order = Array.from({ length: orderSize }, () => foodTypes[Math.floor(Math.random() * foodTypes.length)]);
-    const newCustomer: Customer = {
+    const newCustomer = {
       id: Math.random().toString(36).substr(2, 9),
       tableId: randomTable.id,
       state: CustomerState.ORDERING,
@@ -75,7 +81,7 @@ const App: React.FC = () => {
     setTables(prev => prev.map(t => t.id === randomTable.id ? { ...t, isOccupied: true, customerId: newCustomer.id } : t));
   }, [tables]);
 
-  const updateGame = useCallback((timestamp: number) => {
+  const updateGame = useCallback((timestamp) => {
     if (!lastUpdateRef.current) lastUpdateRef.current = timestamp;
     const delta = (timestamp - lastUpdateRef.current) / 1000;
     lastUpdateRef.current = timestamp;
@@ -133,7 +139,7 @@ const App: React.FC = () => {
     setFoodTray([]);
   };
 
-  const handleTableClick = (tableId: number) => {
+  const handleTableClick = (tableId) => {
     const table = tables.find(t => t.id === tableId);
     if (!table) return;
 
@@ -147,8 +153,8 @@ const App: React.FC = () => {
     if (!customer) return;
 
     if (customer.state === CustomerState.ORDERING) {
-        playSFX('click');
-        setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, state: CustomerState.WAITING_FOOD } : c));
+      playSFX('click');
+      setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, state: CustomerState.WAITING_FOOD } : c));
     } else if (customer.state === CustomerState.WAITING_FOOD && foodTray.length > 0) {
       const matchIndex = foodTray.findIndex(f => customer.order.includes(f));
       if (matchIndex !== -1) {
@@ -180,7 +186,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFoodPrepared = (food: FoodType) => {
+  const handleFoodPrepared = (food) => {
     if (foodTray.length < MAX_TRAY_SLOTS) {
       setFoodTray(prev => [...prev, food]);
     }
@@ -239,13 +245,13 @@ const App: React.FC = () => {
                </div>
             </div>
             
-            {/* Buttons Container - Compact Vertical Stack */}
+            {/* Buttons Container */}
             <div className="relative z-20 w-full max-w-[280px] flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-10 duration-700">
               <button 
                 onClick={handleStart} 
                 className="w-full bg-white hover:bg-yellow-50 text-red-600 text-2xl font-black py-2.5 rounded-2xl shadow-[0_5px_0_#d1d5db] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3 border-[3px] border-white group"
               >
-                <Play fill="currentColor" size={24} className="group-hover:scale-110 transition-transform" /> 영업 시작
+                <Play size={24} className="group-hover:scale-110 transition-transform" /> 영업 시작
               </button>
               
               <button 
@@ -334,3 +340,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+export { CustomerState };

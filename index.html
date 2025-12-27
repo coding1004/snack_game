@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -13,10 +12,6 @@
             background-color: #f3f4f6;
             user-select: none;
         }
-        .pixel-border {
-            border: 4px solid #4a2c2a;
-            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
-        }
         .game-canvas {
             background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
             background-size: 20px 20px;
@@ -28,19 +23,455 @@
         .animate-bounce-small {
             animation: bounce-small 0.5s infinite;
         }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
-  }
-}
-</script>
 </head>
 <body>
     <div id="root"></div>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script>
+        // 게임 시작 - 모든 코드를 여기에 작성
+        const { useState, useEffect, useCallback, useRef } = React;
+        const { createRoot } = ReactDOM;
+        
+        // Constants
+        const FOOD_DATA = {
+            'TTEOKBOKKI': { id: 'TTEOKBOKKI', name: '떡볶이', emoji: '🥘', price: 3500, cookTime: 3 },
+            'KIMBAP': { id: 'KIMBAP', name: '김밥', emoji: '🍱', price: 3000, cookTime: 4 },
+            'RAMEN': { id: 'RAMEN', name: '라면', emoji: '🍜', price: 4000, cookTime: 5 },
+            'TWIGIM': { id: 'TWIGIM', name: '튀김', emoji: '🍤', price: 2500, cookTime: 2 },
+            'SODA': { id: 'SODA', name: '콜라', emoji: '🥤', price: 1500, cookTime: 1 },
+        };
+
+        const INITIAL_TABLES = [
+            { id: 1, isOccupied: false, customerId: null, needsCleaning: false },
+            { id: 2, isOccupied: false, customerId: null, needsCleaning: false },
+            { id: 3, isOccupied: false, customerId: null, needsCleaning: false },
+            { id: 4, isOccupied: false, customerId: null, needsCleaning: false },
+            { id: 5, isOccupied: false, customerId: null, needsCleaning: false },
+            { id: 6, isOccupied: false, customerId: null, needsCleaning: false },
+        ];
+
+        const GAME_DURATION = 120;
+        const MAX_PATIENCE = 100;
+        const PATIENCE_DECAY_RATE = 2.5;
+        const MAX_TRAY_SLOTS = 5;
+
+        const CustomerState = {
+            WAITING_TABLE: 'WAITING_TABLE',
+            ORDERING: 'ORDERING',
+            WAITING_FOOD: 'WAITING_FOOD',
+            EATING: 'EATING',
+            FINISHED: 'FINISHED',
+            LEAVING: 'LEAVING'
+        };
+
+        // TopBar Component
+        function TopBar({ score, timeLeft }) {
+            const seconds = Math.max(0, Math.floor(timeLeft));
+            const progress = (timeLeft / 120) * 100;
+
+            return React.createElement('div', { className: 'flex items-center gap-3 px-4 h-full' },
+                React.createElement('div', { className: 'flex items-center gap-2 bg-black/30 px-4 py-1.5 rounded-full border border-white/10 shrink-0' },
+                    React.createElement('span', { className: 'text-2xl font-black text-yellow-400 tracking-tight leading-none' },
+                        score.toLocaleString(), React.createElement('span', { className: 'text-xs ml-0.5 font-bold' }, '원')
+                    )
+                ),
+                React.createElement('div', { className: 'flex-grow h-3 bg-black/40 rounded-full overflow-hidden border border-white/10 shadow-inner mx-2' },
+                    React.createElement('div', {
+                        className: `h-full transition-all duration-1000 ease-linear ${progress < 25 ? 'bg-red-500 animate-pulse' : 'bg-green-400'}`,
+                        style: { width: `${progress}%` }
+                    })
+                ),
+                React.createElement('div', { className: `flex items-center gap-2 font-black text-lg px-4 py-1.5 rounded-full min-w-[90px] justify-center shadow-lg shrink-0 ${seconds < 20 ? 'bg-red-600 text-white animate-bounce-small' : 'bg-white/10 text-yellow-200 border border-white/10'}` },
+                    React.createElement('span', { className: 'leading-none' }, seconds + 's')
+                )
+            );
+        }
+
+        // GameBoard Component
+        function GameBoard({ tables, customers, onTableClick, foodTray }) {
+            return React.createElement('div', { className: 'grid grid-cols-3 gap-x-8 gap-y-16 w-full max-w-[700px] px-4 pt-10' },
+                tables.map((table) => {
+                    const customer = customers.find(c => c.tableId === table.id);
+                    const hasMatchingFood = customer?.state === CustomerState.WAITING_FOOD && 
+                                            foodTray.some(f => customer.order.includes(f));
+                    
+                    return React.createElement('div', {
+                        key: table.id,
+                        className: 'relative flex flex-col items-center cursor-pointer active:scale-95 transition-transform',
+                        onClick: () => onTableClick(table.id)
+                    },
+                        React.createElement('div', {
+                            className: `w-24 h-12 rounded-[14px] flex items-center justify-center transition-all border-[3px] shadow-md ${table.needsCleaning ? 'bg-gray-200 border-gray-400 shadow-[0_4px_0_rgb(156,163,175)]' : 'bg-red-600 border-white/30 shadow-[0_4px_0_rgb(153,27,27)]'} ${hasMatchingFood ? 'ring-4 ring-yellow-300 ring-offset-2 animate-pulse scale-110' : ''} relative z-10`
+                        },
+                            table.needsCleaning ? React.createElement('div', { className: 'flex items-center gap-1 animate-bounce-small px-1' },
+                                React.createElement('span', { className: 'text-gray-700 font-black text-[9px]' }, '청소')
+                            ) : customer?.state === CustomerState.EATING ? React.createElement('div', { className: 'flex items-center gap-1 px-1' },
+                                React.createElement('div', { className: 'text-base animate-bounce-small' }, '😋'),
+                                React.createElement('span', { className: 'text-white font-black text-[9px]' }, '얌얌')
+                            ) : customer?.state === CustomerState.FINISHED ? React.createElement('div', { className: 'flex items-center gap-1 animate-pulse px-1' },
+                                React.createElement('span', { className: 'text-white font-black text-[10px]' }, '계산!')
+                            ) : !table.needsCleaning && !customer ? React.createElement('div', { className: 'w-full h-full opacity-20 flex items-center justify-center' },
+                                React.createElement('div', { className: 'w-10 h-1.5 bg-white rounded-full' })
+                            ) : null
+                        ),
+                        customer ? React.createElement('div', { className: 'absolute -top-12 z-20 flex flex-col items-center w-full' },
+                            (customer.state === CustomerState.ORDERING || customer.state === CustomerState.WAITING_FOOD) ? React.createElement('div', { className: 'w-12 h-1.5 bg-black/40 rounded-full mb-1 border border-black/50 overflow-hidden shadow-inner' },
+                                React.createElement('div', {
+                                    className: `h-full transition-all duration-300 ${customer.patience < 35 ? 'bg-red-500' : 'bg-green-400'}`,
+                                    style: { width: `${customer.patience}%` }
+                                })
+                            ) : null,
+                            React.createElement('div', { className: 'relative' },
+                                customer.state === CustomerState.ORDERING ? React.createElement('div', { className: 'absolute -right-8 -top-4 bg-white px-2 py-1 rounded-xl border-2 border-blue-500 shadow-lg animate-bounce-small z-30 flex items-center' },
+                                    React.createElement('span', { className: 'text-[10px] font-black text-blue-700' }, '주문!')
+                                ) : null,
+                                customer.state === CustomerState.WAITING_FOOD ? React.createElement('div', { className: 'absolute -right-12 -top-10 bg-white p-1.5 rounded-xl border-2 border-orange-600 shadow-xl flex flex-col items-center z-30 min-w-[50px]' },
+                                    React.createElement('div', { className: 'flex gap-0.5 mb-0.5' },
+                                        customer.order.map((o, idx) =>
+                                            React.createElement('span', { key: idx, className: 'text-lg' }, FOOD_DATA[o].emoji)
+                                        )
+                                    ),
+                                    React.createElement('span', { className: 'text-[8px] font-black text-orange-700' }, '배고파요!')
+                                ) : null,
+                                React.createElement('div', { className: `w-11 h-11 bg-pink-100 rounded-full border-2 border-[#5D3A26] flex items-center justify-center text-2xl shadow-md transition-all ${customer.patience < 35 ? 'grayscale brightness-75 bg-red-100 ring-2 ring-red-500 ring-offset-1' : ''}` },
+                                    customer.patience < 35 ? '😡' : (customer.state === CustomerState.EATING ? '😋' : '😀')
+                                )
+                            )
+                        ) : null,
+                        React.createElement('div', { className: 'mt-2 bg-[#5D3A26]/80 px-3 py-0.5 rounded-full text-white font-black text-[9px]' },
+                            'T-' + table.id
+                        )
+                    );
+                })
+            );
+        }
+
+        // Kitchen Component
+        function Kitchen({ onPrepareFood, foodTray, maxSlots }) {
+            const [cooking, setCooking] = useState({
+                'TTEOKBOKKI': 0,
+                'KIMBAP': 0,
+                'RAMEN': 0,
+                'TWIGIM': 0,
+                'SODA': 0,
+            });
+
+            const startCooking = (foodType) => {
+                if (cooking[foodType] > 0 || foodTray.length >= maxSlots) return;
+                const foodInfo = FOOD_DATA[foodType];
+                setCooking(prev => ({ ...prev, [foodType]: 1 }));
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 20;
+                    setCooking(prev => ({ ...prev, [foodType]: progress }));
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        setCooking(prev => ({ ...prev, [foodType]: 0 }));
+                        onPrepareFood(foodType);
+                    }
+                }, (foodInfo.cookTime * 1000) / 5);
+            };
+
+            return React.createElement('div', { className: 'flex flex-col h-full gap-3 overflow-hidden' },
+                React.createElement('div', { className: 'flex items-center gap-2 border-b-4 border-black/10 pb-3' },
+                    React.createElement('span', { className: 'font-black text-lg text-[#4a2c2a]' }, '주방장 민규')
+                ),
+                React.createElement('div', { className: 'flex flex-col gap-2.5 flex-grow overflow-y-auto pr-1 scrollbar-hide' },
+                    Object.keys(FOOD_DATA).map((type) => {
+                        const food = FOOD_DATA[type];
+                        const isCooking = cooking[type] > 0;
+                        const isTrayFull = foodTray.length >= maxSlots;
+                        
+                        return React.createElement('button', {
+                            key: type,
+                            onClick: () => startCooking(type),
+                            disabled: isCooking || isTrayFull,
+                            className: `relative flex items-center gap-3 p-2.5 rounded-2xl border-4 transition-all h-[64px] ${isCooking ? 'bg-yellow-100 border-yellow-500' : 'bg-white border-[#4a2c2a] shadow-md'} ${isTrayFull ? 'opacity-40 grayscale cursor-not-allowed' : 'active:scale-90 active:shadow-none shadow-[0_5px_0_#4a2c2a] hover:bg-yellow-50'}`
+                        },
+                            isCooking ? React.createElement('div', { className: 'absolute inset-0 bg-yellow-400/20 overflow-hidden rounded-xl' },
+                                React.createElement('div', { className: 'h-full bg-yellow-500/40 transition-all duration-200', style: { width: `${cooking[type]}%` } })
+                            ) : null,
+                            React.createElement('span', { className: 'text-3xl z-10 drop-shadow-md shrink-0' }, food.emoji),
+                            React.createElement('div', { className: 'flex flex-col items-start z-10 overflow-hidden flex-grow leading-none' },
+                                React.createElement('div', { className: 'flex justify-between w-full items-center' },
+                                    React.createElement('span', { className: 'text-[13px] font-black text-black' }, food.name),
+                                    React.createElement('span', { className: 'text-[10px] font-bold' }, food.cookTime + 's')
+                                ),
+                                React.createElement('span', { className: 'text-xs font-black text-red-700 mt-1' }, food.price.toLocaleString() + '원')
+                            )
+                        );
+                    })
+                ),
+                React.createElement('div', { className: 'mt-auto flex flex-col gap-2 border-t-4 border-black/10 pt-3' },
+                    React.createElement('div', { className: 'flex items-center justify-between px-1' },
+                        React.createElement('span', { className: 'text-xs font-black text-[#4a2c2a]' }, '서빙대'),
+                        React.createElement('span', { className: 'text-xs font-black text-white bg-[#4a2c2a] px-3 py-1 rounded-full' }, foodTray.length + '/' + maxSlots)
+                    ),
+                    React.createElement('div', { className: 'bg-black/5 rounded-2xl p-2 border-4 border-[#4a2c2a]/20 grid grid-cols-5 gap-2 min-h-[56px]' },
+                        Array.from({ length: maxSlots }).map((_, i) => {
+                            const foodType = foodTray[i];
+                            return React.createElement('div', {
+                                key: i,
+                                className: `aspect-square rounded-xl border-2 flex items-center justify-center text-2xl transition-all ${foodType ? 'bg-white border-[#4a2c2a] shadow-md animate-bounce-small' : 'bg-transparent border-[#4a2c2a]/10'}`
+                            },
+                                foodType ? FOOD_DATA[foodType].emoji : ''
+                            );
+                        })
+                    )
+                )
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const [gameState, setGameState] = useState('START');
+            const [score, setScore] = useState(0);
+            const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
+            const [customers, setCustomers] = useState([]);
+            const [tables, setTables] = useState(INITIAL_TABLES);
+            const [foodTray, setFoodTray] = useState([]);
+            const [showHelp, setShowHelp] = useState(false);
+
+            const gameLoopRef = useRef(undefined);
+            const lastUpdateRef = useRef(0);
+            const bgmRef = useRef(null);
+            const sfxRefs = useRef({});
+
+            useEffect(() => {
+                bgmRef.current = new Audio('https://www.chosic.com/wp-content/uploads/2021/04/Kawaii-Adventure.mp3');
+                bgmRef.current.loop = true;
+                sfxRefs.current = {
+                    click: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-simple-click-interface-1112.mp3'),
+                    cook: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-fire-swoosh-burning-2439.mp3'),
+                    serve: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-magic-notification-ring-2344.mp3'),
+                    coin: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-coins-handling-1939.mp3'),
+                    angry: new Audio('https://assets.mixkit.co/sfx/preview/mixkit-unhappy-pop-sound-2359.mp3'),
+                };
+            }, []);
+
+            useEffect(() => {
+                if (bgmRef.current) {
+                    bgmRef.current.volume = 0.3;
+                    if (gameState === 'PLAYING') {
+                        bgmRef.current.play().catch(() => {});
+                    } else {
+                        bgmRef.current.pause();
+                    }
+                }
+            }, [gameState]);
+
+            const playSFX = useCallback((key) => {
+                if (sfxRefs.current[key]) {
+                    const audio = sfxRefs.current[key].cloneNode();
+                    audio.volume = 0.5;
+                    audio.play().catch(() => {});
+                }
+            }, []);
+
+            const spawnCustomer = useCallback(() => {
+                const emptyTables = tables.filter(t => !t.isOccupied && !t.needsCleaning);
+                if (emptyTables.length === 0 || Math.random() > 0.4) return;
+                const randomTable = emptyTables[Math.floor(Math.random() * emptyTables.length)];
+                const foodTypes = Object.keys(FOOD_DATA);
+                const orderSize = Math.floor(Math.random() * 2) + 1;
+                const order = Array.from({ length: orderSize }, () => foodTypes[Math.floor(Math.random() * foodTypes.length)]);
+                const newCustomer = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    tableId: randomTable.id,
+                    state: CustomerState.ORDERING,
+                    order: [...order],
+                    initialOrder: [...order],
+                    patience: MAX_PATIENCE,
+                    spawnTime: Date.now(),
+                };
+                setCustomers(prev => [...prev, newCustomer]);
+                setTables(prev => prev.map(t => t.id === randomTable.id ? { ...t, isOccupied: true, customerId: newCustomer.id } : t));
+            }, [tables]);
+
+            const updateGame = useCallback((timestamp) => {
+                if (!lastUpdateRef.current) lastUpdateRef.current = timestamp;
+                const delta = (timestamp - lastUpdateRef.current) / 1000;
+                lastUpdateRef.current = timestamp;
+                
+                setTimeLeft(prev => Math.max(0, prev - delta));
+                setCustomers(prev => {
+                    return prev.map(customer => {
+                        let newState = customer.state;
+                        let newPatience = customer.patience;
+                        if (customer.state === CustomerState.ORDERING || customer.state === CustomerState.WAITING_FOOD) {
+                            newPatience -= PATIENCE_DECAY_RATE * delta;
+                        }
+                        if (newPatience <= 0) {
+                            newState = CustomerState.LEAVING;
+                            playSFX('angry');
+                        }
+                        if (customer.state === CustomerState.EATING && customer.eatingStartTime) {
+                            if (Date.now() - customer.eatingStartTime > 5000) newState = CustomerState.FINISHED;
+                        }
+                        return { ...customer, state: newState, patience: newPatience };
+                    }).filter(c => {
+                        if (c.state === CustomerState.LEAVING) {
+                            setTables(ts => ts.map(t => t.id === c.tableId ? { ...t, isOccupied: false, customerId: null, needsCleaning: true } : t));
+                            return false;
+                        }
+                        return true;
+                    });
+                });
+
+                if (Math.random() < 0.02) spawnCustomer();
+
+                if (timeLeft <= 0) {
+                    setGameState('GAMEOVER');
+                } else if (gameState === 'PLAYING') {
+                    gameLoopRef.current = requestAnimationFrame(updateGame);
+                }
+            }, [spawnCustomer, playSFX, timeLeft, gameState]);
+
+            useEffect(() => {
+                if (gameState === 'PLAYING') {
+                    gameLoopRef.current = requestAnimationFrame(updateGame);
+                } else {
+                    if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+                }
+                return () => { if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current); };
+            }, [gameState, updateGame]);
+
+            const handleStart = () => {
+                playSFX('click');
+                setGameState('PLAYING');
+                setScore(0);
+                setTimeLeft(GAME_DURATION);
+                setCustomers([]);
+                setTables(INITIAL_TABLES);
+                setFoodTray([]);
+            };
+
+            const handleTableClick = (tableId) => {
+                const table = tables.find(t => t.id === tableId);
+                if (!table) return;
+
+                if (table.needsCleaning) {
+                    playSFX('coin');
+                    setTables(prev => prev.map(t => t.id === tableId ? { ...t, needsCleaning: false } : t));
+                    return;
+                }
+
+                const customer = customers.find(c => c.tableId === tableId);
+                if (!customer) return;
+
+                if (customer.state === CustomerState.ORDERING) {
+                    playSFX('click');
+                    setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, state: CustomerState.WAITING_FOOD } : c));
+                } else if (customer.state === CustomerState.WAITING_FOOD && foodTray.length > 0) {
+                    const matchIndex = foodTray.findIndex(f => customer.order.includes(f));
+                    if (matchIndex !== -1) {
+                        const matchedFood = foodTray[matchIndex];
+                        playSFX('serve');
+                        
+                        const newTray = [...foodTray];
+                        newTray.splice(matchIndex, 1);
+                        setFoodTray(newTray);
+
+                        const newOrder = [...customer.order];
+                        const orderIdx = newOrder.indexOf(matchedFood);
+                        newOrder.splice(orderIdx, 1);
+
+                        if (newOrder.length === 0) {
+                            setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, order: [], state: CustomerState.EATING, eatingStartTime: Date.now() } : c));
+                        } else {
+                            setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, order: newOrder } : c));
+                        }
+                    }
+                } else if (customer.state === CustomerState.FINISHED) {
+                    playSFX('coin');
+                    const totalPrice = customer.initialOrder.reduce((sum, foodType) => sum + FOOD_DATA[foodType].price, 0);
+                    const tip = Math.floor(customer.patience * 5);
+                    setScore(s => s + totalPrice + tip);
+                    
+                    setCustomers(prev => prev.filter(c => c.id !== customer.id));
+                    setTables(prev => prev.map(t => t.id === tableId ? { ...t, isOccupied: false, customerId: null, needsCleaning: true } : t));
+                }
+            };
+
+            const handleFoodPrepared = (food) => {
+                if (foodTray.length < MAX_TRAY_SLOTS) {
+                    setFoodTray(prev => [...prev, food]);
+                }
+            };
+
+            return React.createElement('div', { className: 'fixed inset-0 flex items-center justify-center bg-[#2D1B0F] select-none overflow-hidden touch-none' },
+                React.createElement('div', { className: 'w-full h-full relative flex flex-col shadow-2xl overflow-hidden' },
+                    React.createElement('header', { className: 'p-2 z-30 flex items-center gap-2 h-[56px] bg-[#4a2c2a] shadow-lg border-b-2 border-black/30' },
+                        React.createElement('div', { className: 'flex-grow' },
+                            React.createElement(TopBar, { score, timeLeft })
+                        )
+                    ),
+                    React.createElement('div', { className: 'flex flex-grow overflow-hidden bg-[#FDF0D5]' },
+                        React.createElement('main', { className: 'flex-grow flex items-center justify-center p-2 relative overflow-hidden game-canvas' },
+                            React.createElement(GameBoard, { tables, customers, onTableClick: handleTableClick, heldFood: null, foodTray })
+                        ),
+                        React.createElement('aside', { className: 'w-[280px] bg-[#E6C9A8] border-l-4 border-[#4a2c2a] p-3 flex flex-col gap-3' },
+                            React.createElement(Kitchen, { onPrepareFood: (f) => { playSFX('cook'); handleFoodPrepared(f); }, foodTray, maxSlots: MAX_TRAY_SLOTS })
+                        )
+                    ),
+                    gameState === 'START' ? React.createElement('div', { className: 'absolute inset-0 z-50 flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-500 via-red-600 to-yellow-500' },
+                        React.createElement('div', { className: 'relative z-30 flex flex-col items-center' },
+                            React.createElement('h1', { className: 'text-6xl font-black text-white drop-shadow-lg tracking-tighter' }, '민규의'),
+                            React.createElement('h1', { className: 'text-7xl font-black text-yellow-300 drop-shadow-lg tracking-tighter mt-1 italic' }, '분식 전쟁')
+                        ),
+                        React.createElement('div', { className: 'relative z-20 w-full max-w-[280px] flex flex-col gap-2.5 mt-8' },
+                            React.createElement('button', { onClick: handleStart, className: 'w-full bg-white text-red-600 text-2xl font-black py-3 rounded-2xl shadow-lg' }, '영업 시작'),
+                            React.createElement('button', { onClick: () => { playSFX('click'); setShowHelp(true); }, className: 'w-full bg-red-800 text-white text-2xl font-black py-3 rounded-2xl shadow-lg' }, '게임 방법')
+                        )
+                    ) : null,
+                    showHelp ? React.createElement('div', { className: 'absolute inset-0 bg-black/90 flex items-center justify-center z-[100] p-6' },
+                        React.createElement('div', { className: 'bg-[#FFF4E0] p-6 rounded-[40px] w-full max-w-2xl border-[8px] border-[#4a2c2a] shadow-2xl relative' },
+                            React.createElement('button', { onClick: () => setShowHelp(false), className: 'absolute -top-6 -right-6 bg-red-500 text-white p-3 rounded-full border-4 border-[#4a2c2a]' }, '✕'),
+                            React.createElement('h3', { className: 'text-4xl font-black text-[#4a2c2a] mb-6 text-center' }, '게임 방법'),
+                            React.createElement('div', { className: 'grid grid-cols-2 gap-4' },
+                                React.createElement('div', { className: 'flex items-center gap-4 bg-white/90 p-4 rounded-2xl border-2 border-blue-100' },
+                                    React.createElement('div', { className: 'w-11 h-11 bg-blue-500 rounded-xl flex items-center justify-center text-white font-black text-2xl' }, '1'),
+                                    React.createElement('p', { className: 'text-lg font-black text-gray-800' }, '손님 주문 받기')
+                                ),
+                                React.createElement('div', { className: 'flex items-center gap-4 bg-white/90 p-4 rounded-2xl border-2 border-orange-100' },
+                                    React.createElement('div', { className: 'w-11 h-11 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-2xl' }, '2'),
+                                    React.createElement('p', { className: 'text-lg font-black text-gray-800' }, '주방 메뉴로 요리')
+                                ),
+                                React.createElement('div', { className: 'flex items-center gap-4 bg-white/90 p-4 rounded-2xl border-2 border-green-100' },
+                                    React.createElement('div', { className: 'w-11 h-11 bg-green-500 rounded-xl flex items-center justify-center text-white font-black text-2xl' }, '3'),
+                                    React.createElement('p', { className: 'text-lg font-black text-gray-800' }, '완성된 요리 서빙')
+                                ),
+                                React.createElement('div', { className: 'flex items-center gap-4 bg-white/90 p-4 rounded-2xl border-2 border-red-100' },
+                                    React.createElement('div', { className: 'w-11 h-11 bg-red-500 rounded-xl flex items-center justify-center text-white font-black text-2xl' }, '4'),
+                                    React.createElement('p', { className: 'text-lg font-black text-gray-800' }, '계산 및 청소')
+                                )
+                            ),
+                            React.createElement('button', { onClick: () => setShowHelp(false), className: 'w-full mt-6 bg-red-600 text-white text-2xl font-black py-4 rounded-2xl' }, '가보자고!')
+                        )
+                    ) : null,
+                    gameState === 'GAMEOVER' ? React.createElement('div', { className: 'absolute inset-0 bg-black/95 flex flex-col items-center justify-center z-[200] p-4 text-center' },
+                        React.createElement('h2', { className: 'text-5xl text-white mb-4 font-black italic' }, '영업 종료!'),
+                        React.createElement('div', { className: 'bg-white/5 p-4 rounded-[30px] mb-6 border-4 border-white/10 w-full max-w-[320px]' },
+                            React.createElement('p', { className: 'text-gray-400 text-lg mb-0.5' }, "Today's Revenue"),
+                            React.createElement('p', { className: 'text-yellow-400 text-5xl font-black' }, score.toLocaleString() + '원')
+                        ),
+                        React.createElement('div', { className: 'flex flex-col gap-3 w-full max-w-[280px]' },
+                            React.createElement('button', { onClick: handleStart, className: 'w-full flex items-center justify-center gap-3 bg-green-500 text-white text-2xl font-black py-3 rounded-2xl' }, '다시 시작'),
+                            React.createElement('button', { onClick: () => { playSFX('click'); setGameState('START'); }, className: 'w-full flex items-center justify-center gap-3 bg-[#5D3A26] text-white text-2xl font-black py-3 rounded-2xl' }, '메인으로')
+                        )
+                    ) : null
+                )
+            );
+        }
+
+        // Mount the app
+        const root = createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
 </body>
 </html>
